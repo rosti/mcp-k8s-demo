@@ -1,0 +1,123 @@
+
+# Secret — the actual database credentials
+# In production this comes from Vault, External Secrets, etc.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: db-credentials
+  namespace: demo
+  labels:
+    app: order-service
+    component: config
+type: Opaque
+stringData:
+  db-credentials.json: |
+    {
+      "db_host": "postgres.database.svc.cluster.local",
+      "db_password": "super-secret-password-123",
+      "db_name": "orders_production"
+    }
+
+---
+
+# Deployment — HERE IS THE BUG
+
+# The app expects config at:  /app/config/db-credentials.json
+# The secret is mounted at:   /etc/secrets/db-credentials.json
+
+# This mismatch is realistic — it happens when:
+#   - A different team manages the Helm chart
+#   - Someone copies a template and changes the mountPath
+#   - The app was refactored but the manifest wasn't updated
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: order-service
+  namespace: demo
+  labels:
+    app: order-service
+    version: v1.2.0
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: order-service
+  template:
+    metadata:
+      labels:
+        app: order-service
+        version: v1.2.0
+    spec:
+      containers:
+        - name: order-service
+          image: order-service:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+              name: http
+              protocol: TCP
+          env:
+            - name: PORT
+              value: "8080"
+
+          # --- Volume mount: WRONG PATH ---
+          # App reads from /app/config/ but we mount to /etc/secrets/
+          volumeMounts:
+            - name: db-config
+              mountPath: /etc/secrets        # <-- BUG: should be /app/config
+              readOnly: true
+
+          # Liveness probe: checks if process is alive
+          # This PASSES because /healthz doesn't touch config
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            failureThreshold: 3
+
+          # Readiness probe: checks if pod can serve traffic
+          # This ALSO PASSES — same healthy endpoint
+          # A better probe would hit /api/orders, but many teams
+          # use the same endpoint for both. This is the trap.
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 5
+            failureThreshold: 3
+
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+
+      volumes:
+        - name: db-config
+          secret:
+            secretName: db-credentials
+
+---
+# Service — exposes the pods
+apiVersion: v1
+kind: Service
+metadata:
+  name: order-service
+  namespace: demo
+  labels:
+    app: order-service
+spec:
+  type: ClusterIP
+  selector:
+    app: order-service
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+      protocol: TCP
