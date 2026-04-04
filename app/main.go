@@ -114,12 +114,21 @@ var (
 func metricsHandler(w http.ResponseWriter, r *http.Request) {
 	mu.Lock()
 	defer mu.Unlock()
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"total_requests":  totalRequests,
-		"failed_requests": failedRequests,
-		"error_rate":      fmt.Sprintf("%.1f%%", float64(failedRequests)/max(float64(totalRequests), 1)*100),
-	})
+	// Prometheus exposition format — no external dependencies needed
+	w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
+	fmt.Fprintf(w, "# HELP order_service_total_requests Total number of requests to /api/orders\n")
+	fmt.Fprintf(w, "# TYPE order_service_total_requests counter\n")
+	fmt.Fprintf(w, "order_service_total_requests %d\n", totalRequests)
+	fmt.Fprintf(w, "# HELP order_service_failed_requests Total number of failed requests to /api/orders\n")
+	fmt.Fprintf(w, "# TYPE order_service_failed_requests counter\n")
+	fmt.Fprintf(w, "order_service_failed_requests %d\n", failedRequests)
+	fmt.Fprintf(w, "# HELP order_service_success_requests Total number of successful requests\n")
+	fmt.Fprintf(w, "# TYPE order_service_success_requests counter\n")
+	fmt.Fprintf(w, "order_service_success_requests %d\n", totalRequests-failedRequests)
+	errorRate := float64(failedRequests) / max(float64(totalRequests), 1) * 100
+	fmt.Fprintf(w, "# HELP order_service_error_rate_percent Current error rate percentage\n")
+	fmt.Fprintf(w, "# TYPE order_service_error_rate_percent gauge\n")
+	fmt.Fprintf(w, "order_service_error_rate_percent %.1f\n", errorRate)
 }
 
 func withMetrics(next http.HandlerFunc) http.HandlerFunc {

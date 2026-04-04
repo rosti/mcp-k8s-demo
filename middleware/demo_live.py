@@ -31,9 +31,8 @@ from mcp import ClientSession
 from mcp.client.stdio import stdio_client, StdioServerParameters
 
 
-# ──────────────────────────────────────────────────────────────
+
 # Config — change these or pass via CLI
-# ──────────────────────────────────────────────────────────────
 NAMESPACE = "demo"
 DEPLOYMENT = "order-service"
 MCP_SERVER_CMD = "npx"
@@ -41,9 +40,9 @@ MCP_SERVER_ARGS = ["-y", "mcp-server-kubernetes"]
 CONTEXT_WINDOW_MAX = 40_000
 
 
-# ──────────────────────────────────────────────────────────────
+
 # Terminal presentation
-# ──────────────────────────────────────────────────────────────
+
 CYAN    = "\033[0;36m"
 GREEN   = "\033[0;32m"
 RED     = "\033[0;31m"
@@ -154,9 +153,9 @@ def print_llm_response(text):
     print()
 
 
-# ──────────────────────────────────────────────────────────────
+
 # MCP helpers
-# ──────────────────────────────────────────────────────────────
+
 
 # Tool name mapping — mcp-server-kubernetes (Flux159) uses kubectl_* names
 # CONFIRMED: kubectl_get expects: resourceType + namespace (not command!)
@@ -216,9 +215,9 @@ async def find_pod_names(session, namespace, deployment):
     return names, raw
 
 
-# ──────────────────────────────────────────────────────────────
+
 # Claude API
-# ──────────────────────────────────────────────────────────────
+
 def _get_ssl_context():
     """Get SSL context that works on macOS."""
     import ssl
@@ -270,9 +269,9 @@ def call_claude(prompt, max_tokens=1500):
     return None
 
 
-# ══════════════════════════════════════════════════════════════
+
 # MAIN DEMO
-# ══════════════════════════════════════════════════════════════
+
 async def run_demo():
     context_window = ""
     mcp_call_count = 0
@@ -307,9 +306,9 @@ async def run_demo():
             if len(tool_names) > 12:
                 print(f"    {DIM}...and {len(tool_names) - 12} more{NC}")
 
-            # ══════════════════════════════════════════════════
+            
             # ACT 1: AGENT LOOP
-            # ══════════════════════════════════════════════════
+           
             wait("Act 1: Agent Investigation Loop")
             print_header("Act 1 — Agent Calls MCP Tools (context grows)")
             print(f"  Each MCP call adds real cluster data to the context.\n")
@@ -391,9 +390,9 @@ async def run_demo():
             s2_tokens = estimate_tokens(context_window)
             print(f"  {BOLD}{mcp_call_count} MCP calls → {format_tokens(s2_tokens)} tokens{NC}")
 
-            # ══════════════════════════════════════════════════
+            
             # ACT 2: EXPLOSION
-            # ══════════════════════════════════════════════════
+            
             wait("Act 2: Context Explosion")
             print_header("Act 2 — What Happens in Production")
             print(f"  In production, the agent checks restart history,")
@@ -432,9 +431,9 @@ async def run_demo():
                                  prev_tokens=s2_tokens, duration=2.5)
             print(f"  {RED}{BOLD}⚠  Context is no longer an asset — it's a problem.{NC}")
 
-            # ══════════════════════════════════════════════════
+            
             # ACT 3: SUMMARIZATION — Claude compresses
-            # ══════════════════════════════════════════════════
+            
             wait("Act 3: Summarization")
             print_header("Act 3 — Claude Compresses Raw Data")
 
@@ -498,9 +497,9 @@ Extract concise diagnostic summary as JSON:
                 print(f"  {RED}Summarization failed.{NC}")
                 summary_tokens = s3_tokens
 
-            # ══════════════════════════════════════════════════
+            
             # ACT 4: CONTEXT HANDOFF
-            # ══════════════════════════════════════════════════
+            
             wait("Act 4: Context Handoff")
             print_header("Act 4 — Context Handoff")
             print(f"  {BOLD}Old way:{NC} all raw data → LLM")
@@ -515,9 +514,9 @@ Extract concise diagnostic summary as JSON:
             print(f"  {GREEN}{BOLD}↓ {reduction:.0f}% reduction{NC}")
             print(f"  {BOLD}\"We carry forward knowledge, not data.\"{NC}")
 
-            # ══════════════════════════════════════════════════
+            
             # ACT 5a: INCOMPLETE CONTEXT
-            # ══════════════════════════════════════════════════
+            
             wait("Act 5: AI Reasoning — incomplete context")
             print_header("Act 5 — Root Cause Analysis")
             print(f"  {BOLD}What if the agent only has logs, no deployment spec?{NC}\n")
@@ -551,9 +550,9 @@ Be concise."""
 
             print(f"  {BOLD}A naive agent would hallucinate. A good agent {YELLOW}asks for more data.{NC}\n")
 
-            # ══════════════════════════════════════════════════
+            
             # ACT 5b: FULL REASONING
-            # ══════════════════════════════════════════════════
+            
             wait("Add deployment spec → full reasoning")
             print_subheader("Adding full context")
             thinking_pause("Context enriched...", 0.8)
@@ -590,9 +589,9 @@ Be concise and specific."""
             else:
                 print(f"  {RED}Reasoning failed.{NC}\n")
 
-            # ══════════════════════════════════════════════════
+            
             # ACT 6: GENERATE AND APPLY FIX
-            # ══════════════════════════════════════════════════
+            
             wait("Act 6: Generate and Apply Fix")
             print_header("Act 6 — Closing the Loop")
 
@@ -692,9 +691,9 @@ Respond ONLY with JSON:
             else:
                 print(f"  {RED}Could not generate fix.{NC}")
 
-            # ══════════════════════════════════════════════════
+            
             # FINALE
-            # ══════════════════════════════════════════════════
+            
             print_header("The Full Pipeline")
             print(f"  {BOLD}What just happened:{NC}\n")
             print(f"    {CYAN}1.{NC} MCP collected data     {DIM}{mcp_call_count} real tool calls{NC}")
