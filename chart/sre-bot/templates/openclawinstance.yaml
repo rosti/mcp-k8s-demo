@@ -1,0 +1,146 @@
+apiVersion: openclaw.rocks/v1alpha1
+kind: OpenClawInstance
+metadata:
+  name: sre-bot
+  namespace: {{ include "sre-bot.namespace" . }}
+  labels:
+    {{- include "sre-bot.labels" . | nindent 4 }}
+spec:
+  sidecars:
+    - name: kubernetes-mcp-server
+      image: node:24
+      args:
+        - npx
+        - -y
+        - kubernetes-mcp-server
+        - --port
+        - "3100"
+        - --kubeconfig
+        - /kubeconfig/config
+        - --cluster-provider
+        - kubeconfig
+        - --read-only
+        - --stateless
+        - --disable-multi-cluster
+        - --log-level
+        - "9"
+      volumeMounts:
+        - name: target-kubeconfig
+          mountPath: /kubeconfig
+          readOnly: true
+      ports:
+        - containerPort: 3100
+      resources:
+        requests:
+          cpu: 300m
+          memory: 512Mi
+        limits:
+          cpu: "1"
+          memory: 2Gi
+  sidecarVolumes:
+    - name: target-kubeconfig
+      secret:
+        secretName: kubeconfig-secret
+  image:
+    repository: ghcr.io/openclaw/openclaw
+    tag: "2026.4.9"
+    pullPolicy: IfNotPresent
+  runtimeDeps:
+    pnpm: true
+  envFrom:
+    - secretRef:
+        name: openclaw-secrets
+  env:
+    - name: KUBECONFIG
+      value: /home/openclaw/.kube/config
+    - name: ALLOW_ONLY_NON_DESTRUCTIVE_TOOLS
+      value: "true"
+  extraVolumes:
+    - name: k8s-alert-runbook-skill
+      configMap:
+        name: k8s-alert-runbook-skill
+  extraVolumeMounts:
+    - name: k8s-alert-runbook-skill
+      mountPath: /home/openclaw/.openclaw/workspace/skills/k8s-alert-runbook
+      readOnly: true
+  resources:
+    requests:
+      cpu: "1"
+      memory: 2Gi
+    limits:
+      cpu: "4"
+      memory: 8Gi
+  storage:
+    persistence:
+      enabled: true
+      existingClaim: openclaw-workspace
+  security:
+    networkPolicy:
+      additionalEgress:
+        - to:
+            - ipBlock:
+                cidr: 127.0.0.1/8
+          ports:
+            - protocol: TCP
+              port: 3100
+        - to:
+            - ipBlock:
+                cidr: {{ .Values.k8s.targetClusterCIDR }}
+          ports:
+            - protocol: TCP
+              port: 6443
+  config:
+    raw:
+      agents:
+        defaults:
+          model:
+            primary: openai/gpt-5.4-mini
+          heartbeat:
+            every: "0m"
+          skills:
+            - k8s_alert_runbook
+      channels:
+        defaults:
+          groupPolicy: allowlist
+        discord:
+          enabled: true
+          allowBots: "mentions"
+          token:
+            source: env
+            provider: default
+            id: DISCORD_BOT_TOKEN
+          guilds:
+            {{ .Values.discord.serverID }}:
+              users:
+                {{- toYaml .Values.discord.users | nindent 16 }}
+              requireMention: true
+              channels:
+                {{ .Values.discord.channelID}}:
+                  enabled: true
+                  users:
+                    {{- toYaml .Values.discord.users | nindent 20 }}
+                  skills:
+                    - k8s_alert_runbook
+                  systemPrompt: |
+                    {{- .Files.Get "files/system_prompt.md" | nindent 20 }}
+        threadBindings:
+          enabled: true
+          idleHours: 24
+          maxAgeHours: 0
+          spawnSubagentSessions: false
+        ui:
+          components:
+            accentColor: "#5865F2"
+      mcp:
+        servers:
+          kubernetes:
+            url: http://localhost:3100/mcp
+            transport: streamable-http
+  workspace:
+    initialDirectories:
+      - skills/k8s-alert-runbook
+    initialFiles:
+      SOUL.md: |
+        {{- .Files.Get "files/SOUL.md" | nindent 8 }}
+      AGENT.md: |
+        {{- .Files.Get "files/AGENT.md" | nindent 8 }}

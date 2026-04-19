@@ -1,0 +1,9 @@
+Install completed for release {{ .Release.Name }} in namespace {{ include "sre-bot.namespace" . }}.
+
+Prerequisites:
+- The OpenClaw CRD/operator must already be installed in the cluster.
+- The secrets `kubeconfig-secret` and `openclaw-secrets` must exist in the target namespace.
+
+Common commands:
+- helm upgrade --install {{ .Release.Name }} <chart-ref> -n {{ include "sre-bot.namespace" . }} --create-namespace
+- helm template {{ .Release.Name }} <chart-ref> -n {{ include "sre-bot.namespace" . }}

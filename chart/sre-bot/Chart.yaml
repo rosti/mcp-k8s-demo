@@ -1,0 +1,6 @@
+apiVersion: v2
+name: sre-bot
+description: Helm chart for the OpenClaw sre-bot deployment resources
+type: application
+version: 0.1.0
+appVersion: "2026.4.9"

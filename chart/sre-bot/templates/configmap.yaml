@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: k8s-alert-runbook-skill
+  namespace: {{ include "sre-bot.namespace" . }}
+  labels:
+    {{- include "sre-bot.labels" . | nindent 4 }}
+data:
+  SKILL.md: |
+    {{- .Files.Get "files/SKILL.md" | nindent 4 }}
