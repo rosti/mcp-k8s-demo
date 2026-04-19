@@ -105,7 +105,9 @@ spec:
             secretName: db-credentials
 
 ---
+##############################################################
 # Service — exposes the pods
+##############################################################
 apiVersion: v1
 kind: Service
 metadata:

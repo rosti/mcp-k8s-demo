@@ -1,0 +1,403 @@
+##############################################################
+# Noisy Workloads v2 — Healthy but verbose services
+#
+# All services are HEALTHY and RUNNING. No crashes, no errors.
+# They simply generate a lot of logs and data, so when
+# sre-bot checks "all namespaces", the context explodes
+# with irrelevant but healthy service data.
+#
+# Usage:
+#   kubectl apply -f k8s/noisy-workloads.yaml
+#   kubectl get pods --all-namespaces
+#
+# Cleanup:
+#   kubectl delete ns payment auth-system analytics logging-stack
+##############################################################
+
+# ============================================================
+# Namespace: payment — busy payment processing service
+# ============================================================
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: payment
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment-api
+  namespace: payment
+  labels:
+    app: payment-api
+    version: v3.2.1
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: payment-api
+  template:
+    metadata:
+      labels:
+        app: payment-api
+        version: v3.2.1
+    spec:
+      containers:
+        - name: payment-api
+          image: velmira/order-service:latest
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              while true; do
+                echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) INFO: payment-api v3.2.1 healthy"
+                echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) INFO: Processing transaction batch #$((RANDOM % 9999))"
+                echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) INFO: Stripe webhook received for order ORD-$((RANDOM % 99999))"
+                echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) INFO: Payment confirmed: $((RANDOM % 500 + 10)).99 EUR"
+                echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) INFO: Database pool: 8/20 connections active"
+                echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) INFO: Cache hit ratio: 94.2%"
+                echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) INFO: Queue depth: $((RANDOM % 50)) pending transactions"
+                echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) INFO: Health check passed: /healthz 200 OK"
+                sleep 3
+              done
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 50m
+              memory: 64Mi
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment-worker
+  namespace: payment
+  labels:
+    app: payment-worker
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: payment-worker
+  template:
+    metadata:
+      labels:
+        app: payment-worker
+    spec:
+      containers:
+        - name: payment-worker
+          image: velmira/order-service:latest
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              while true; do
+                echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) INFO: Worker processing refund REF-$((RANDOM % 9999))"
+                echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) INFO: Sending receipt email to customer"
+                echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) INFO: Updating ledger entry for account ACC-$((RANDOM % 999))"
+                echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) INFO: Reconciliation complete: 0 discrepancies"
+                sleep 4
+              done
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 50m
+              memory: 64Mi
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: payment-api
+  namespace: payment
+spec:
+  selector:
+    app: payment-api
+  ports:
+    - port: 80
+      targetPort: 8080
+
+# ============================================================
+# Namespace: auth-system — OAuth2 and auth proxy services
+# ============================================================
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: auth-system
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oauth2-server
+  namespace: auth-system
+  labels:
+    app: oauth2-server
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: oauth2-server
+  template:
+    metadata:
+      labels:
+        app: oauth2-server
+    spec:
+      containers:
+        - name: oauth2-server
+          image: velmira/order-service:latest
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              while true; do
+                echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) INFO: oauth2-server v2.1.0 running"
+                echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) INFO: Token issued for client order-service (scope: read:orders)"
+                echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) INFO: Token issued for client payment-api (scope: write:payments)"
+                echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) INFO: Token refresh for session SES-$((RANDOM % 99999))"
+                echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) INFO: Active sessions: $((RANDOM % 200 + 50))"
+                echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) INFO: Certificate valid until 2027-03-15"
+                echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) INFO: JWKS endpoint served 1,247 requests/min"
+                sleep 3
+              done
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 50m
+              memory: 64Mi
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auth-proxy
+  namespace: auth-system
+  labels:
+    app: auth-proxy
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: auth-proxy
+  template:
+    metadata:
+      labels:
+        app: auth-proxy
+    spec:
+      containers:
+        - name: auth-proxy
+          image: velmira/order-service:latest
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              while true; do
+                echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) INFO: Proxied request to /api/orders → 200"
+                echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) INFO: Proxied request to /api/payments → 200"
+                echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) INFO: Proxied request to /api/users → 200"
+                echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) INFO: Rate limit check: 142/1000 requests used"
+                echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) INFO: mTLS handshake OK with upstream"
+                sleep 2
+              done
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 50m
+              memory: 64Mi
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: oauth2-server
+  namespace: auth-system
+spec:
+  selector:
+    app: oauth2-server
+  ports:
+    - port: 443
+      targetPort: 8443
+
+# ============================================================
+# Namespace: analytics — data pipeline services
+# ============================================================
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: analytics
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: analytics-pipeline
+  namespace: analytics
+  labels:
+    app: analytics-pipeline
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: analytics-pipeline
+  template:
+    metadata:
+      labels:
+        app: analytics-pipeline
+    spec:
+      containers:
+        - name: analytics-pipeline
+          image: velmira/order-service:latest
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              while true; do
+                echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) INFO: Ingesting events from Kafka topic orders-events"
+                echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) INFO: Batch $((RANDOM % 9999)): processed 2,481 events in 1.2s"
+                echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) INFO: Writing to ClickHouse: orders_analytics table"
+                echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) INFO: Aggregation job completed: daily_revenue_report"
+                echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) INFO: Dashboard cache refreshed: 47 queries updated"
+                echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) INFO: Lag: 0.3s behind latest event"
+                sleep 3
+              done
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 50m
+              memory: 64Mi
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: analytics-exporter
+  namespace: analytics
+  labels:
+    app: analytics-exporter
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: analytics-exporter
+  template:
+    metadata:
+      labels:
+        app: analytics-exporter
+    spec:
+      containers:
+        - name: exporter
+          image: velmira/order-service:latest
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              while true; do
+                echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) INFO: Exported 14,892 rows to data warehouse"
+                echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) INFO: S3 backup completed: s3://analytics-backup/2026/04/"
+                echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) INFO: Data retention: deleted 3 partitions older than 90 days"
+                sleep 10
+              done
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 50m
+              memory: 64Mi
+
+# ============================================================
+# Namespace: logging-stack — log collection services
+# ============================================================
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: logging-stack
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: log-collector
+  namespace: logging-stack
+  labels:
+    app: log-collector
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: log-collector
+  template:
+    metadata:
+      labels:
+        app: log-collector
+    spec:
+      containers:
+        - name: log-collector
+          image: velmira/order-service:latest
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              while true; do
+                echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) INFO: Collected 8,429 log lines from 47 pods"
+                echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) INFO: Forwarded to elasticsearch-master.logging-stack.svc:9200"
+                echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) INFO: Buffer usage: 1.2Gi / 5Gi (24%)"
+                echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) INFO: Dropped 0 events (rate within limits)"
+                echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) INFO: Parsed 8,429 structured JSON entries"
+                echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) INFO: Enriched with k8s metadata: namespace, pod, container"
+                sleep 2
+              done
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 50m
+              memory: 64Mi
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: log-aggregator
+  namespace: logging-stack
+  labels:
+    app: log-aggregator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: log-aggregator
+  template:
+    metadata:
+      labels:
+        app: log-aggregator
+    spec:
+      containers:
+        - name: log-aggregator
+          image: velmira/order-service:latest
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              while true; do
+                echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) INFO: Index orders-2026.04.12: 2.1M docs, 1.8Gi"
+                echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) INFO: Index payments-2026.04.12: 890K docs, 760Mi"
+                echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) INFO: Index auth-2026.04.12: 1.4M docs, 1.1Gi"
+                echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) INFO: Index analytics-2026.04.12: 3.2M docs, 2.9Gi"
+                echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) INFO: Cluster health: GREEN, 12 shards, 0 unassigned"
+                echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) INFO: Disk usage: 42% (168Gi / 400Gi)"
+                sleep 5
+              done
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 50m
+              memory: 64Mi

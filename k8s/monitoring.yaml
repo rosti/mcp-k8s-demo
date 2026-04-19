@@ -52,34 +52,11 @@ data:
         static_configs:
           - targets: ["localhost:9090"]
 
- 
   # Alert rules — this is what triggers the demo
   alert_rules.yml: |
     groups:
       - name: order-service-alerts
         rules:
-          # Alert 1: High error rate
-          # Fires when the order-service has any failed requests
-          - alert: HighErrorRate
-            expr: |
-              (
-                increase(order_service_failed_requests[1m]) > 0
-              )
-            for: 10s        # fires fast for demo — normally 5m
-            labels:
-              severity: critical
-              service: order-service
-              namespace: demo
-            annotations:
-              summary: "Order service has high error rate"
-              description: >
-                The order-service in namespace demo has
-                {{ $value }} failed requests in the last minute.
-                All /api/orders requests are returning HTTP 500.
-              runbook: "Check pod logs and deployment config."
-
-          # Alert 2: Orders endpoint returning errors
-          # (alternative rule using the ratio of failures)
           - alert: OrdersEndpointDown
             expr: |
               (
@@ -87,7 +64,7 @@ data:
                 /
                 (order_service_total_requests > 0)
               ) > 0.5
-            for: 10s
+            for: 30s
             labels:
               severity: critical
               service: order-service
@@ -212,22 +189,20 @@ metadata:
 data:
   alertmanager.yml: |
     global:
-      resolve_timeout: 1m
+      resolve_timeout: 5m
 
     route:
       receiver: "webhook-bridge"
       group_by: ["alertname", "namespace", "service"]
-      group_wait: 5s        # fast for demo
-      group_interval: 10s
-      repeat_interval: 1m   # re-alert quickly for demo
+      group_wait: 10s
+      group_interval: 5m
+      repeat_interval: 4h    # don't repeat for 4 hours
 
     receivers:
-      # Webhook receiver — sends alerts to our bridge
-      # The bridge will forward to OpenClaw
       - name: "webhook-bridge"
         webhook_configs:
           - url: "http://alert-bridge.monitoring.svc:5000/alert"
-            send_resolved: true
+            send_resolved: false  # don't send resolved notifications
 
 ---
 # AlertManager Deployment
