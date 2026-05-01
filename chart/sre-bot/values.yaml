@@ -1,0 +1,19 @@
+namespaceOverride: ""
+
+pvc:
+  enabled: true
+  name: openclaw-workspace
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path
+  size: 10Gi
+
+discord:
+  serverID: ""
+  channelID: ""
+  users:
+    - "1"
+    - "2"
+
+k8s:
+  targetClusterCIDR: "A.B.C.D/32"
