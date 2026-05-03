@@ -62,11 +62,11 @@ spec:
             - name: PORT
               value: "8080"
 
-          # --- Volume mount: WRONG PATH ---
-          # App reads from /app/config/ but we mount to /etc/secrets/
+          # --- Volume mount: FIXED PATH ---
+          # App reads from /app/config/ and we mount there now
           volumeMounts:
             - name: db-config
-              mountPath: /etc/secrets        # <-- BUG: should be /app/config
+              mountPath: /app/config
               readOnly: true
 
           # Liveness probe: checks if process is alive
@@ -82,7 +82,7 @@ spec:
           # Readiness probe: checks if pod can serve traffic
           # This ALSO PASSES — same healthy endpoint
           # A better probe would hit /api/orders, but many teams
-          # use the same endpoint for both. This is the trap.
+          # use the same endpoint for both.
           readinessProbe:
             httpGet:
               path: /readyz
