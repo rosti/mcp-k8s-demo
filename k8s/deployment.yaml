@@ -21,10 +21,15 @@ stringData:
 
 ---
 ##############################################################
-# Deployment — fixed mount path
+# Deployment — HERE IS THE BUG
 #
 # The app expects config at:  /app/config/db-credentials.json
-# The secret is now mounted at /app/config/db-credentials.json
+# The secret is mounted at:   /etc/secrets/db-credentials.json
+#
+# This mismatch is realistic — it happens when:
+#   - A different team manages the Helm chart
+#   - Someone copies a template and changes the mountPath
+#   - The app was refactored but the manifest wasn't updated
 ##############################################################
 apiVersion: apps/v1
 kind: Deployment
@@ -57,11 +62,15 @@ spec:
             - name: PORT
               value: "8080"
 
+          # --- Volume mount: WRONG PATH ---
+          # App reads from /app/config/ but we mount to /etc/secrets/
           volumeMounts:
             - name: db-config
-              mountPath: /app/config
+              mountPath: /etc/secrets        # <-- BUG: should be /app/config
               readOnly: true
 
+          # Liveness probe: checks if process is alive
+          # This PASSES because /healthz doesn't touch config
           livenessProbe:
             httpGet:
               path: /healthz
@@ -70,6 +79,10 @@ spec:
             periodSeconds: 10
             failureThreshold: 3
 
+          # Readiness probe: checks if pod can serve traffic
+          # This ALSO PASSES — same healthy endpoint
+          # A better probe would hit /api/orders, but many teams
+          # use the same endpoint for both. This is the trap.
           readinessProbe:
             httpGet:
               path: /readyz
